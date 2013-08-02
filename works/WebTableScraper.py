@@ -36,8 +36,8 @@ class WebTableScrapper(object):
     def scrapData(self):
         self.browser = self.createBrowser([Config.USER_AGENT])
         self.browser.set_handle_robots(True)
-        self.scrapDataByState('UPEC', 'MIN', '2011', 'Gujarat')
-        exit(1)
+        # self.scrapDataByState('UPEC', 'MIN', '2011', 'Gujarat')
+        # exit(1)
         data = self.browser.open(self.url, None, 60).read()
         if data is not None:
             soup = BeautifulSoup(data)
