@@ -1,0 +1,4 @@
+2013-08-03 12:49:37 AM <ERROR> utils.Csv : [Errno 2] No such file or directory: 'env_clearance.csv'
+2013-08-03 01:13:32 AM <ERROR> utils.Csv : [Errno 2] No such file or directory: 'env_clearance.csv'
+2013-08-03 01:15:25 AM <ERROR> utils.Csv : [Errno 2] No such file or directory: 'env_clearance.csv'
+2013-08-03 01:21:39 AM <ERROR> utils.Csv : [Errno 2] No such file or directory: 'env_clearance.csv'
