@@ -1,6 +1,8 @@
 import cookielib
+from lxml import html
 import mechanize
 from bs4 import BeautifulSoup
+from logs.LogManager import LogManager
 from utils.Csv import Csv
 from utils.Regex import Regex
 
@@ -25,6 +27,7 @@ class WebTableScrapper(object):
         self.states = []
         self.csvDataHeader = ['Status', 'Category', 'Year', 'State', 'Serial No', 'Proposal details', 'Location',
                               'Important Date', 'Category', 'Company Proponent']
+        self.logger = LogManager(__name__)
         self.regex = Regex()
         dupCsvReader = Csv()
         self.dupCsvRows = dupCsvReader.readCsvRow('env_clearance.csv')
@@ -34,74 +37,85 @@ class WebTableScrapper(object):
             self.dupCsvRows.append(self.csvDataHeader)
 
     def scrapData(self):
-        self.browser = self.createBrowser([Config.USER_AGENT])
-        self.browser.set_handle_robots(True)
-        # self.scrapDataByState('UPEC', 'MIN', '2011', 'Gujarat')
-        # exit(1)
-        data = self.browser.open(self.url, None, 60).read()
-        if data is not None:
-            soup = BeautifulSoup(data)
-            self.statuses = self.populateDropDownValues(soup, 'ddlstatus', '0')
-            self.categories = self.populateDropDownValues(soup, 'ddlcategory', '-All Category-')
-            self.years = self.populateDropDownValues(soup, 'ddlyear', '-All Years-')
-            self.states = self.populateDropDownValues(soup, 'ddlstate', '-All State-')
+        try:
+            self.browser = self.createBrowser([Config.USER_AGENT])
+            self.browser.set_handle_robots(False)
+            # self.scrapDataByState('UPEC', 'MIN', '2011', 'Gujarat')
+            # exit(1)
+            data = self.browser.open(self.url, None, 60).read()
+            if data is not None:
+                soup = BeautifulSoup(data)
+                self.statuses = self.populateDropDownValues(soup, 'ddlstatus', '0')
+                self.categories = self.populateDropDownValues(soup, 'ddlcategory', '-All Category-')
+                self.years = self.populateDropDownValues(soup, 'ddlyear', '-All Years-')
+                self.states = self.populateDropDownValues(soup, 'ddlstate', '-All State-')
 
-            for status in self.statuses:
-                self.scrapDataByStatus(status)
-                exit(1)
+                for status in self.statuses:
+                    self.scrapDataByStatus(status[0], status[1])
+        except Exception, x:
+            self.logger.error(x)
 
     def populateDropDownValues(self, soup, idValue, ignoreValue):
         listItem = []
-        allStatusList = soup.find('select', {'id': idValue})
-        if allStatusList is not None:
-            for status in allStatusList.find_all('option'):
-                if status.get('value') != ignoreValue:
-                    listItem.append(status.get('value'))
+        try:
+            allStatusList = soup.find('select', {'id': idValue})
+            if allStatusList is not None:
+                for status in allStatusList.find_all('option'):
+                    if status.get('value') != ignoreValue:
+                        listItem.append((status.get('value'), status.text))
+        except Exception, x:
+            self.logger.error(x)
         return listItem
 
 
-    def scrapDataByStatus(self, status):
+    def scrapDataByStatus(self, status, statusName):
         for category in self.categories:
-            self.scrapDataByCategory(status, category)
-            exit(1)
+            self.scrapDataByCategory(status, statusName, category[0], category[1])
 
-    def scrapDataByCategory(self, status, category):
+    def scrapDataByCategory(self, status, statusName, category, categoryName):
         for year in self.years:
-            self.scrapDataByYear(status, category, year)
-            exit(1)
+            self.scrapDataByYear(status, statusName, category, categoryName, year[0], year[1])
 
-    def scrapDataByYear(self, status, category, year):
+    def scrapDataByYear(self, status, statusName, category, categoryName, year, yearName):
         for state in self.states:
-            self.scrapDataByState(status, category, year, state)
-            exit(1)
+            self.scrapDataByState(status, statusName, category, categoryName, year, yearName, state[0], state[1])
 
-    def scrapDataByState(self, status, category, year, state):
-        self.browser.open(self.url)
-        self.browser.select_form(name="form1")
-        self.browser["ddlstatus"] = [status]
-        self.browser["ddlcategory"] = [category]
-        self.browser["ddlyear"] = [year]
-        self.browser["ddlstate"] = [state]
-        res = self.browser.submit()
-        content = res.read()
+    def scrapDataByState(self, status, statusName, category, categoryName, year, yearName, state, stateName):
+        try:
+            self.browser.open(self.url)
+            self.browser.select_form(name="form1")
+            self.browser["ddlstatus"] = [status]
+            self.browser["ddlcategory"] = [category]
+            self.browser["ddlyear"] = [year]
+            self.browser["ddlstate"] = [state]
+            res = self.browser.submit()
+            content = res.read()
 
-        if content is not None:
-            content = self.regex.replaceData('\r+', ' ', content)
-            content = self.regex.replaceData('\n+', ' ', content)
-            content = self.regex.replaceData('\s+', ' ', content)
-            soup = BeautifulSoup(content)
-            table = soup.find('table', {'class': 'ez1'})
-            if table:
-                for row in table.find_all('tr'):
-                    cols = row.find_all('td')
-                    if cols is not None and len(cols) > 7:
-                        csvData = [status, category, year, state, cols[0].text, cols[1].text, cols[2].text,
-                                   cols[3].text, cols[4].text, cols[5].text,
-                                   cols[6].text]
-                        print csvData
-                        if csvData not in self.dupCsvRows:
-                            self.csvWriter.writeCsvRow(csvData)
-                            self.dupCsvRows.append(csvData)
+            if content is not None:
+                content = self.regex.replaceData('\r+', ' ', content)
+                content = self.regex.replaceData('\n+', ' ', content)
+                content = self.regex.replaceData('\s+', ' ', content)
+                soup = BeautifulSoup(content)
+                table = soup.find('table', {'class': 'ez1'})
+                if table:
+                    table = html.fromstring(str(table))
+                    rows = table.xpath('./tr')
+                    for row in rows:
+                        cols = row.xpath('./td')
+                        #for row in table.findChildren('tr'):
+                        #cols = row.findChildren('td')
+                        if cols is not None and len(cols) > 5:
+                            csvData = [statusName, categoryName, yearName, stateName, cols[0].text_content().strip(),
+                                       cols[1].text_content().strip(), cols[2].text_content().strip(),
+                                       cols[3].text_content().strip(), cols[4].text_content().strip(),
+                                       cols[5].text_content().strip()]
+                            self.logger.debug(unicode(csvData))
+                            print csvData
+                            if csvData not in self.dupCsvRows:
+                                self.csvWriter.writeCsvRow(csvData)
+                                self.dupCsvRows.append(csvData)
+        except Exception, x:
+            self.logger.error(x)
 
 
     def createBrowser(self, headers):
