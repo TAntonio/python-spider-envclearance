@@ -53,6 +53,7 @@ class WebTableScrapper(object):
                 for status in self.statuses:
                     self.scrapDataByStatus(status[0], status[1])
         except Exception, x:
+            print x
             self.logger.error(x)
 
     def populateDropDownValues(self, soup, idValue, ignoreValue):
